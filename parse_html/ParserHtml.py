@@ -1,8 +1,9 @@
 import urllib.request as request
 import requests
 
-from parse_html.parse_rutracker import ParseFilmRutracker
+from parse_html.parse_rutracker import ParseFilmRutracker, FilmDescription
 from parse_html.tests import HTML_TEXT_RUTRACKER
+from parse_html.tests import HTML_TEXT_RUTRACKER2
 
 
 class HtmlParser(object):
@@ -22,7 +23,7 @@ class HtmlParser(object):
     def get_web_file(self, address):
         return request.urlopen(address).read()
 
-    def parse_film_descr_from_rutracker(self) -> dict:
+    def parse_film_descr_from_rutracker(self) -> FilmDescription:
         self._html_text = HTML_TEXT_RUTRACKER
         if self._html_text:
             parser = ParseFilmRutracker(self.get_html_text, self.get_web_file)
