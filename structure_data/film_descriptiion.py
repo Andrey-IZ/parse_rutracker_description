@@ -23,13 +23,13 @@ class FilmDescription(object):
         result = {}
         for k, v in self.__dict__.items():
             if k in ['poster']:
-                result[k] = codecs.encode(v, "base64").decode()
+                result[k] = v[0], codecs.encode(v[1], "base64").decode()
             elif k in ['screenshots', 'ratings']:
                 image_list = []
                 for image in v:
-                    image_encode = codecs.encode(image,
+                    image_encode = codecs.encode(image[1],
                                                  "base64").decode()  # unpickled = codecs.decode(image_encode.encode() ,"base64")
-                    image_list.append(image_encode)
+                    image_list.append((image[0], image_encode))
                 result[k] = image_list
             else:
                 result[k] = v
@@ -38,12 +38,12 @@ class FilmDescription(object):
     def from_dict(self, dict_load):
         for k, v in dict_load:
             if k in ['poster']:
-                self.__dict__[k] = codecs.decode(v.encode(), "base64")
+                self.__dict__[k] = v[0], codecs.decode(v.encode(), "base64")
             elif k in ['screenshots', 'ratings']:
                 image_list = []
-                for image_encode in v:
+                for ref, image_encode in v:
                     image = codecs.decode(image_encode.encode(), "base64")
-                    image_list.append(image)
+                    image_list.append((ref, image))
                 self.__dict__[k] = image_list
             else:
                 self.__dict__.update(dict_load)
