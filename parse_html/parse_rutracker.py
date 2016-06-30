@@ -1,4 +1,6 @@
 import re
+from shutil import rmtree
+import os
 import urllib.request as request
 from structure_data.film_descriptiion import FilmDescription
 
@@ -13,7 +15,8 @@ class ParseFilmRutracker(object):
         self.__compile_regex()
 
     def __compile_regex(self):
-        self.__p_frame = re.compile(r'(<head.*?>.*?</head>).*?(' + self.__path_div + '.*?)(?:' + self.__path_div_end + ')', re.DOTALL)
+        self.__p_frame = re.compile(
+            r'(<head.*?>.*?</head>).*?(' + self.__path_div + '.*?)(?:' + self.__path_div_end + ')', re.DOTALL)
         self.__p_title = re.compile(r'(?<=>)\s*(.*?)(?=<br\s?/>)', re.DOTALL)
         self.__p_title_div = re.compile(r'([А-Яа-яёЁ 0-9]+)\s+[/\\]\s+([a-zA-Z 0-9]+)', re.MULTILINE)
         self.__p_screen_ref = re.compile(
@@ -33,8 +36,9 @@ class ParseFilmRutracker(object):
                 frame = film_descr.web[m.end(1):]
                 film_descr.title, film_descr.title_rus, pos = self.__get_title(frame)
                 film_descr.poster, pos = self.__get_poster(frame[pos:])
-                with open('poster.png', 'wb') as fd:
-                    fd.write(film_descr.poster[1])
+                if film_descr.poster:
+                    with open('poster.png', 'wb') as fd:
+                        fd.write(film_descr.poster[1])
                 frame = frame[pos:]
                 film_descr.country = self.__get_mini_descr(frame, 'Страна')
                 film_descr.genre = self.__get_mini_descr(frame, 'Жанр')
@@ -45,15 +49,43 @@ class ParseFilmRutracker(object):
                 film_descr.video = self.__get_mini_descr(frame, r'(?:Качество\s)?видео')
                 film_descr.cast = self.__get_mini_descr(frame, r'В\s+ролях')
                 film_descr.screenshots = self.__get_screenshots(frame)
-                for i, (ref, img, ext) in enumerate(film_descr.screenshots):
-                    with open('screen_' + str(i) + '.' + ext, 'wb') as fd:
-                        fd.write(img)
+                if film_descr.screenshots:
+                    for i, (ref, img, ext) in enumerate(film_descr.screenshots):
+                        with open('screen_' + str(i) + '.' + ext, 'wb') as fd:
+                            fd.write(img)
                 film_descr.ratings = self.__get_ratings(frame)
-                for i, (ref, img, ext) in enumerate(film_descr.ratings):
-                    with open('rates_' + str(i) + '.' + ext, 'wb') as fd:
-                        fd.write(img)
+                if film_descr.ratings:
+                    for i, (ref, img, ext) in enumerate(film_descr.ratings):
+                        with open('rates_' + str(i) + '.' + ext, 'wb') as fd:
+                            fd.write(img)
                 return film_descr
         return None
+
+    def save_to_file(self, film_descr: FilmDescription, path_to_save, filename):
+        html_text = film_descr.web
+        name_dir_file = filename + '_files'
+        dir_path = path_to_save + os.path.sep + name_dir_file
+        if os.path.exists(dir_path):
+            rmtree(dir_path, True)
+        os.mkdir(dir_path)
+        os.chdir(dir_path)
+        html_text = self._create_image(html_text, film_descr.screenshots, name_dir_file, 'screen')
+        html_text = self._create_image(html_text, film_descr.poster, name_dir_file, 'poster')
+        os.chdir('..')
+        with open(filename + '.html', 'wt') as f:
+            f.writelines(html_text)
+
+    def _create_image(self, html_text:str, list_images, dir_images, prefix: str):
+        if list_images:
+            for i, (ref, image, ext) in enumerate(list_images):
+                filename = '{}_{}.{}'.format(prefix, i, ext)
+                with open(filename, 'wb') as f:
+                    f.write(image)
+                    sym = '&#10;'
+                    pattern = r'(<a\s+href="{}"\s+(?:class="postLink")?.*?>\s*<var .*?>)({})(</var>\s*</a>)'.format(ref, sym)
+                    repl = r'\1<img src="{}" class="postImg" alt="pic">\3'.format('./' + dir_images + '/' + filename)
+                    html_text = re.sub(pattern, repl, html_text)
+        return html_text
 
     def __get_ratings(self, html_text: str) -> list:
         images = []
@@ -97,14 +129,15 @@ class ParseFilmRutracker(object):
 
     def __get_poster(self, html_text) -> tuple:
         poster = self.__p_poster.search(html_text)
-        if poster and poster.group(1):
+        if poster and len(poster.groups()) == 2:
             ref = poster.group(1)
+            ext = poster.group(2)
             try:
                 image = self.__web_file_loader(ref)
             except request.URLError:
                 image = None
-            return (ref, image), poster.end()
-        return (tuple(), bytes()), 0
+            return (ref, image, ext), poster.end()
+        return (), 0
 
     def __get_title(self, html_text) -> tuple:
         m_title = self.__p_title.search(html_text)
