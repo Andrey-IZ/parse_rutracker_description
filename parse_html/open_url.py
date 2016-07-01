@@ -19,9 +19,9 @@ class HtmlParserWeb(HtmlParser):
                 self._dict_proxies = dict(http='socks5://{}:{}'.format(address, port),
                                           https='socks5://{}:{}'.format(address, port))
 
-    def _get_html_text(self, address):
+    def _get_html_text(self, url):
         try:
-            return requests.get(address, proxies=self._dict_proxies).text
+            return requests.get(url, proxies=self._dict_proxies).text
         except requests.exceptions.ConnectionError as err:
             print('ERROR: {}'.format(err))
         return ''

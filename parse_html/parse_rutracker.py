@@ -6,12 +6,12 @@ from structure_data.film_descriptiion import FilmDescription
 
 
 class ParseFilmRutracker(object):
-    def __init__(self, func_loader, func_loader_file):
+    def __init__(self, func_loader, func_loader_file, download_file_on_disk):
         self.__html_loader = func_loader
         self.__web_file_loader = func_loader_file
+        self.__download_file_on_disk = download_file_on_disk
         self.__path_div = r'<div class="post_body" id="p-[0-9]+">'
         self.__path_div_end = r'<div class="clear">.*?</div>.*?(</div>\s*<!--/post_body-->)'
-        # self.__div_the_end = '</div><!--/post_wrap-->'
         self.__compile_regex()
 
     def __compile_regex(self):
@@ -23,11 +23,12 @@ class ParseFilmRutracker(object):
             r'\s*<a .*?href="(http://.*?\.((?:(?:png)|(?:jpe?g)|(?:gif)))[.\w]*)".*?>', re.S)
         self.__p_screen_ref_image = re.compile(r"<script>\s+loading_img\s+=\s+'(.*?)';", re.S)
         self.__p_div_screen = re.compile(
-            r'<div class="sp-head folded">.*?Скриншоты.*?(<div class="sp-body">).*?(</\s?div>)', re.S)
+            r'<div class="sp-head folded">.*?Скриншот', re.S)
         self.__p_rating_img = re.compile(r'<var class="postImg" title="(http://[^\s>]+[.](gif)\s*)"\s*>', re.S)
-        self.__p_poster = re.compile(r'(?<=>)\s*<var\s+class="postImg[" ].*?title="(http://.*?)".*?>', re.DOTALL)
+        self.__p_poster = re.compile(r'(?<=>)\s*<var\s+class="postImg[" ].*?title="'
+                                     r'(http://.*?\.((?:(?:png)|(?:jpe?g)|(?:gif))))".*?>', re.DOTALL)
 
-    def parse(self, html_text):
+    def parse(self, html_text) -> FilmDescription:
         if html_text:
             film_descr = FilmDescription()
             m = self.__p_frame.search(html_text, re.DOTALL)
@@ -36,9 +37,9 @@ class ParseFilmRutracker(object):
                 frame = film_descr.web[m.end(1):]
                 film_descr.title, film_descr.title_rus, pos = self.__get_title(frame)
                 film_descr.poster, pos = self.__get_poster(frame[pos:])
-                if film_descr.poster:
-                    with open('poster.png', 'wb') as fd:
-                        fd.write(film_descr.poster[1])
+                # if film_descr.poster:
+                #     with open('poster.png', 'wb') as fd:
+                #         fd.write(film_descr.poster[1])
                 frame = frame[pos:]
                 film_descr.country = self.__get_mini_descr(frame, 'Страна')
                 film_descr.genre = self.__get_mini_descr(frame, 'Жанр')
@@ -49,41 +50,77 @@ class ParseFilmRutracker(object):
                 film_descr.video = self.__get_mini_descr(frame, r'(?:Качество\s)?видео')
                 film_descr.cast = self.__get_mini_descr(frame, r'В\s+ролях')
                 film_descr.screenshots = self.__get_screenshots(frame)
-                if film_descr.screenshots:
-                    for i, (ref, img, ext) in enumerate(film_descr.screenshots):
-                        with open('screen_' + str(i) + '.' + ext, 'wb') as fd:
-                            fd.write(img)
+                # if film_descr.screenshots:
+                #     for i, (ref, img, ext) in enumerate(film_descr.screenshots):
+                #         with open('screen_' + str(i) + '.' + ext, 'wb') as fd:
+                #             fd.write(img)
                 film_descr.ratings = self.__get_ratings(frame)
-                if film_descr.ratings:
-                    for i, (ref, img, ext) in enumerate(film_descr.ratings):
-                        with open('rates_' + str(i) + '.' + ext, 'wb') as fd:
-                            fd.write(img)
+                # if film_descr.ratings:
+                #     for i, (ref, img, ext) in enumerate(film_descr.ratings):
+                #         with open('rates_' + str(i) + '.' + ext, 'wb') as fd:
+                #             fd.write(img)
                 return film_descr
         return None
 
     def save_to_file(self, film_descr: FilmDescription, path_to_save, filename):
-        html_text = film_descr.web
-        name_dir_file = filename + '_files'
-        dir_path = path_to_save + os.path.sep + name_dir_file
-        if os.path.exists(dir_path):
-            rmtree(dir_path, True)
-        os.mkdir(dir_path)
-        os.chdir(dir_path)
-        html_text = self._create_image(html_text, film_descr.screenshots, name_dir_file, 'screen')
-        html_text = self._create_image(html_text, film_descr.poster, name_dir_file, 'poster')
-        os.chdir('..')
-        with open(filename + '.html', 'wt') as f:
-            f.writelines(html_text)
+        if film_descr:
+            html_text = film_descr.web
+            name_dir_files = filename + '_files'
+            dir_path = path_to_save + os.path.sep + name_dir_files
+            # try:
+            if os.path.exists(dir_path):
+                os.chmod(dir_path + '/..', 0x0777)
+                rmtree(dir_path, False)
 
-    def _create_image(self, html_text:str, list_images, dir_images, prefix: str):
+            os.mkdir(dir_path)
+            os.chmod(dir_path, 0x0777)
+            # except:
+            #     print("Error: Denied access to dir:" + dir_path)
+            #     return False
+            os.chdir(dir_path)
+            html_text = self._load_css(html_text, name_dir_files)
+            html_text = self._load_js(html_text, name_dir_files)
+            html_text = self._create_image(html_text, film_descr.screenshots, name_dir_files, 'screen')
+            html_text = self._create_image(html_text, [film_descr.poster], name_dir_files, 'poster')
+            os.chdir('..')
+            with open(filename + '.html', 'wt') as f:
+                f.writelines(html_text)
+            return True
+        return False
+
+    def _load_css(self, html_text: str, dir_files):
+        pattern = r'(<link\s+href=")(.*?)([^/]+[.]\w+)\s*("\s+rel="stylesheet">)'
+        html_text = self._move_web_to_local_file(dir_files, html_text, pattern)
+        return html_text
+
+    def _load_js(self, html_text: str, dir_files):
+        pattern = r'(<script\s+src=")(.*?)([^/]+[.]\w+)\s*("\s*>.*?</script>)'
+        html_text = self._move_web_to_local_file(dir_files, html_text, pattern)
+        return html_text
+
+    def _move_web_to_local_file(self, dir_files, html_text, pattern):
+        list_re = re.findall(pattern, html_text, re.DOTALL)
+        if list_re:
+            for item_re in list_re:
+                web_file_name = item_re[2]
+                file_web_path = item_re[1]
+                file_web_path = file_web_path if file_web_path[:5] == 'http:' else 'http:' + file_web_path
+                self.__download_file_on_disk(file_web_path + web_file_name, web_file_name)
+
+                file_path = './' + dir_files + '/'
+                repl = r'\1{}\3\4'.format(file_path)
+                html_text = re.sub(pattern, repl, html_text, 1, re.DOTALL)
+        return html_text
+
+    def _create_image(self, html_text:str, list_images, dir_files, prefix: str):
         if list_images:
+            sym = '&#10;'
             for i, (ref, image, ext) in enumerate(list_images):
                 filename = '{}_{}.{}'.format(prefix, i, ext)
                 with open(filename, 'wb') as f:
                     f.write(image)
-                    sym = '&#10;'
                     pattern = r'(<a\s+href="{}"\s+(?:class="postLink")?.*?>\s*<var .*?>)({})(</var>\s*</a>)'.format(ref, sym)
-                    repl = r'\1<img src="{}" class="postImg" alt="pic">\3'.format('./' + dir_images + '/' + filename)
+                    repl = r'\1<img src="{}" class="postImg" alt="pic">\3'.format('./' + dir_files + '/' + filename)
                     html_text = re.sub(pattern, repl, html_text)
         return html_text
 
