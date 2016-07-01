@@ -23,7 +23,7 @@ class ParseFilmRutracker(object):
             r'\s*<a .*?href="(http://.*?\.((?:(?:png)|(?:jpe?g)|(?:gif)))[.\w]*)".*?>', re.S)
         self.__p_screen_ref_image = re.compile(r"<script>\s+loading_img\s+=\s+'(.*?)';", re.S)
         self.__p_div_screen = re.compile(
-            r'<div class="sp-head folded">.*?Скриншот', re.S)
+            r'<div class="sp-head folded">.*?(Скриншот\w*)', re.S)
         self.__p_rating_img = re.compile(r'<var class="postImg" title="(http://[^\s>]+[.](gif)\s*)"\s*>', re.S)
         self.__p_poster = re.compile(r'(?<=>)\s*<var\s+class="postImg[" ].*?title="'
                                      r'(http://.*?\.((?:(?:png)|(?:jpe?g)|(?:gif))))".*?>', re.DOTALL)
@@ -69,11 +69,11 @@ class ParseFilmRutracker(object):
             dir_path = path_to_save + os.path.sep + name_dir_files
             # try:
             if os.path.exists(dir_path):
-                os.chmod(dir_path + '/..', 0x0777)
+                # os.chmod(dir_path + '/..', 0x0777)
                 rmtree(dir_path, False)
 
             os.mkdir(dir_path)
-            os.chmod(dir_path, 0x0777)
+            # os.chmod(dir_path, 0x0777)
             # except:
             #     print("Error: Denied access to dir:" + dir_path)
             #     return False
@@ -120,7 +120,7 @@ class ParseFilmRutracker(object):
                 with open(filename, 'wb') as f:
                     f.write(image)
                     pattern = r'(<a\s+href="{}"\s+(?:class="postLink")?.*?>\s*<var .*?>)({})(</var>\s*</a>)'.format(ref, sym)
-                    repl = r'\1<img src="{}" class="postImg" alt="pic">\3'.format('./' + dir_files + '/' + filename)
+                    repl = r'<a href="{0}" class="postLink"><img src="{0}" class="postImg" alt="pic"></a>'.format('./' + dir_files + '/' + filename)
                     html_text = re.sub(pattern, repl, html_text)
         return html_text
 
@@ -139,10 +139,9 @@ class ParseFilmRutracker(object):
 
     def __get_screenshots(self, html_text: str) -> list:
         div_screens = self.__p_div_screen.search(html_text)
-        if div_screens and len(div_screens.groups()) == 2:
+        if div_screens and len(div_screens.groups()) == 1:
             start = div_screens.end(1)
-            end = div_screens.end(2)
-            refs = self.__p_screen_ref.findall(html_text[start:end])
+            refs = self.__p_screen_ref.findall(html_text[start:])
             images = []
             for ref, ext in refs:
                 try:
