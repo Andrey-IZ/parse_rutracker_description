@@ -30,12 +30,14 @@ class HtmlParser(object):
 
     def load_info_film_from_rutracker(self, address, path_to_save='.') -> bool:
         # html_text = HTML_TEXT_RUTRACKER
+        print('parsing web site: {}'.format(address))
         html_text = self._get_html_text(address)
         parser = ParseFilmRutracker(self._get_html_text, self.get_web_file, self.download_file_on_disk)
         fd = parser.parse(html_text)
         if fd:
             title = '{1} ({0})_({2})_{3}'.format(fd.title_rus, fd.title,  re.sub(r'[;:\s,\]\[.]', '_', fd.genre), fd.video)
             if parser.save_to_file(fd, path_to_save, title):
+                print('========= web page is saved =================')
                 return True
         return False
 
