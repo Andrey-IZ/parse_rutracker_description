@@ -2,7 +2,7 @@ import urllib.request as request
 import requests
 # import os.path
 import re
-from parse_html.parse_rutracker import ParseFilmRutracker, FilmDescription
+from parse_html.parse_rutracker import ParseFilmRutracker
 # from parse_html.tests import HTML_TEXT_RUTRACKER
 # from parse_html.tests import HTML_TEXT_RUTRACKER2
 
@@ -32,10 +32,15 @@ class HtmlParser(object):
         # html_text = HTML_TEXT_RUTRACKER
         print('parsing web site: {}'.format(address))
         html_text = self._get_html_text(address)
-        parser = ParseFilmRutracker(self._get_html_text, self.get_web_file, self.download_file_on_disk)
+        parser = ParseFilmRutracker(self._get_html_text, self.get_web_file,
+                                    self.download_file_on_disk)
         fd = parser.parse(html_text)
         if fd:
-            title = '{1} ({0})_({2})_{3}'.format(fd.title_rus, fd.title,  re.sub(r'[;:\s,\]\[.]', '_', fd.genre), fd.video)
+            title = '{1} ({0})_({2})_{4}_{3}'.format(re.sub(r'[_;:"\'\\/\s.]', '_', fd.title_rus),
+                                                 re.sub(r'[;:\\/\s.]', '_', fd.title),
+                                                 re.sub(r'[;:\\/\s,\]\[.]', '_', fd.genre),
+                                                 re.sub(r'[\[\]\\/]', '_', fd.video),
+                                                 fd.year)
             if parser.save_to_file(fd, path_to_save, title):
                 print('========= web page is saved =================')
                 return True

@@ -1,5 +1,5 @@
 import re
-from shutil import rmtree
+from shutil import rmtree, move
 import os
 import urllib.request as request
 from structure_data.film_descriptiion import FilmDescription
@@ -17,12 +17,17 @@ class ParseFilmRutracker(object):
     def __compile_regex(self):
         self.__p_frame = re.compile(
             r'(<head.*?>.*?</head>).*?(' + self.__path_div + '.*?)(?:' + self.__path_div_end + ')', re.DOTALL)
-        self.__p_title = re.compile(r'<span.*?>\s*([а-яА-яёЁ0-9\s(),.;]+)\s*(?:/\s*([a-zA-z\s0-9(),.;]+))?\s*</span>',
-                                    re.DOTALL)
+        self.__p_title = re.compile(r'<span.*?>\s*([а-яА-яёЁ0-9\s(),.:;"\']+)\s*'
+                                    r'(?:/?\s*([a-zA-z\s0-9(),.:;"\']+))?.*?'
+                                    r'<span\s*class="post-b".*?>(?:(?:\s*Страна.*?)|'
+                                    r'(?:\s*Год.*?))</span>', re.DOTALL | re.I)
         self.__p_title_div = re.compile(r'([А-Яа-яёЁ 0-9]+)\s+[/\\]\s+([a-zA-Z 0-9]+)', re.MULTILINE)
         self.__p_screen_ref = re.compile(
             r'\s*<a .*?href="(http://.*?\.((?:(?:png)|(?:jpe?g)|(?:gif)))[.\w]*)".*?>', re.S)
         self.__p_screen_ref_image = re.compile(r"<script>\s+loading_img\s+=\s+'(.*?)';", re.S)
+        self.__p_screen_ref_radikal_image = re.compile(
+            r'<div itemscope itemtype="http://schema.org/ImageObject">\s+'
+            r'<img\s+src="(.*?)".*? itemprop="contentUrl".*?/>', re.S)
         self.__p_div_screen = re.compile(
             r'<div class="sp-head folded">.*?(Скриншот\w*)', re.S)
         self.__p_rating_img = re.compile(r'<var class="postImg" title="(http://[^\s>]+[.](gif)\s*)"\s*>', re.S)
@@ -48,7 +53,8 @@ class ParseFilmRutracker(object):
                 film_descr.length = self.__get_mini_descr(frame, 'Продолжительность')
                 film_descr.subtitles = self.__get_mini_descr(frame, 'Cубтитры')
                 film_descr.year = self.__get_mini_descr(frame, r'Год(?:\sвыпуска)?')
-                film_descr.video = self.__get_mini_descr(frame, r'(?:Качество\s)?видео')
+                # film_descr.video = self.__get_mini_descr(frame, r'(?:Качество\s)?видео')
+                film_descr.video = self.__get_quality(frame)
                 film_descr.cast = self.__get_mini_descr(frame, r'В\s+ролях')
                 film_descr.screenshots = self.__get_screenshots(frame)
                 # if film_descr.screenshots:
@@ -74,7 +80,7 @@ class ParseFilmRutracker(object):
                 # os.chmod(dir_path + '/..', 0x0777)
                 rmtree(dir_path, False)
 
-            os.mkdir(dir_path)
+            os.makedirs(dir_path)
             # os.chmod(dir_path, 0x0777)
             # except:
             #     print("Error: Denied access to dir:" + dir_path)
@@ -87,9 +93,14 @@ class ParseFilmRutracker(object):
             print('saving poser ...')
             html_text = self._create_image(html_text, [film_descr.poster], name_dir_files, 'poster')
             os.chdir('..')
-            print('saving web page: "{}/{}" ...'.format(os.curdir, filename))
+            print('saving web page: "{}/{}" ...'.format(os.getcwd(), filename))
             with open(filename + '.html', 'wt') as f:
                 f.writelines(html_text)
+            new_dir = filename
+            os.makedirs(new_dir)
+            move(filename + '.html', new_dir)
+            move(name_dir_files, new_dir)
+            os.chdir('..')
             return True
         return False
 
@@ -176,15 +187,26 @@ class ParseFilmRutracker(object):
             for ref, ext in refs:
                 try:
                     text_ref = self.__html_loader(ref)
-                    ref_image = self.__p_screen_ref_image.search(text_ref)
+                    if re.search(r'http://radikal.ru', ref):
+                        ref_image = self.__p_screen_ref_radikal_image.search(text_ref)
+                    else:
+                        ref_image = self.__p_screen_ref_image.search(text_ref)
                     if ref_image and len(ref_image.groups()) == 1:
-                        image = self.__web_file_loader(ref_image.group(1))
+                        link = ref_image.group(1)
+                        image = self.__web_file_loader(link)
                         if image:
                             images.append((ref, image, ext))
                 except request.URLError as err:
                     print('ERROR (screenshots): {}'.format(err))
             return images
         return None
+
+    def __get_quality(self, html_text):
+        tag = r'(?:Качество\s+)?видео'
+        m_quality = re.search(r'(?<=>)\s*' + tag + r'.*?:\s*(.*?)\s*[(].*?[)](?=<br\s*?/>)', html_text, re.I)
+        if m_quality and m_quality.group(1):
+            return m_quality.group(1)
+        return ''
 
     def __get_mini_descr(self, html_text, tag) -> str:
         m_tag = re.search(r'(?<=>)(?:\s+)?' + tag + r'(?:\s+)?.*?:(?:\s+)?(.*?)<.*?(?=<br\s?/>)', html_text,
@@ -211,6 +233,8 @@ class ParseFilmRutracker(object):
         if m_title and len(m_title.groups()) >= 1:
             print('get title ...', end='')
             title_rus, title = m_title.groups()
+            title_rus = '' if title_rus is None else title_rus
+            title = '' if title is None else title
             print('title = ', title_rus, title)
             return title_rus.strip(), title.strip(), m_title.end()
         return '', '', 0
