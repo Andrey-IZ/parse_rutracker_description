@@ -42,9 +42,6 @@ class ParseFilmRutracker(object):
                 frame = film_descr.web[m.end(1):]
                 film_descr.title, film_descr.title_rus, pos = self.__get_title(frame)
                 film_descr.poster, pos = self.__get_poster(film_descr.title, frame)
-                # if film_descr.poster:
-                #     with open('poster.png', 'wb') as fd:
-                #         fd.write(film_descr.poster[1])
                 frame = frame[pos:]
                 film_descr.country = self.__get_mini_descr(frame, 'Страна')
                 film_descr.genre = self.__get_mini_descr(frame, 'Жанр')
@@ -52,19 +49,10 @@ class ParseFilmRutracker(object):
                 film_descr.length = self.__get_mini_descr(frame, 'Продолжительность')
                 film_descr.subtitles = self.__get_mini_descr(frame, 'Cубтитры')
                 film_descr.year = self.__get_mini_descr(frame, r'Год(?:\sвыпуска)?')
-                # film_descr.video = self.__get_mini_descr(frame, r'(?:Качество\s)?видео')
                 film_descr.video = self.__get_quality(frame)
                 film_descr.cast = self.__get_mini_descr(frame, r'В\s+ролях')
                 film_descr.screenshots = self.__get_screenshots(film_descr.title, frame)
-                # if film_descr.screenshots:
-                #     for i, (ref, img, ext) in enumerate(film_descr.screenshots):
-                #         with open('screen_' + str(i) + '.' + ext, 'wb') as fd:
-                #             fd.write(img)
                 film_descr.ratings = self.__get_ratings(film_descr.title, frame)
-                # if film_descr.ratings:
-                #     for i, (ref, img, ext) in enumerate(film_descr.ratings):
-                #         with open('rates_' + str(i) + '.' + ext, 'wb') as fd:
-                #             fd.write(img)
                 return film_descr
         return None
 
@@ -74,17 +62,13 @@ class ParseFilmRutracker(object):
             name_dir_files = filename + '_files'
             print(film_descr.title + ': save to file: {0} ...'.format(filename))
             os.chdir(path_to_save)
-            print(film_descr.title + ': get curcwd = ' + os.getcwd())
+            # print(film_descr.title + ': get curcwd = ' + os.getcwd())
             dir_path = filename
             if os.path.exists(dir_path):
-                # os.chmod(dir_path + '/..', 0x0777)
                 rmtree(dir_path, False)
 
             os.makedirs(name_dir_files)
-            # os.chmod(dir_path, 0x0777)
-            # except:
-            #     print("Error: Denied access to dir:" + dir_path)
-            #     return False
+
             os.chdir(name_dir_files)
             # print(film_descr.title + ': get curcwd = ' + os.getcwd())
             html_text = self._load_css(film_descr.title, html_text, name_dir_files)
@@ -99,6 +83,7 @@ class ParseFilmRutracker(object):
             print(film_descr.title + ': saving web page: "{0}/{1}" ...'.format(os.getcwd(), filename))
             with open(filename + '.html', 'wt') as f:
                 f.writelines(html_text)
+
             new_dir = filename
             s = re.search(r'([\s])',filename)
             if s:
@@ -110,6 +95,7 @@ class ParseFilmRutracker(object):
                 print(err)
                 rmtree(new_dir, False)
                 os.makedirs(new_dir)
+
             move(filename + '.html', os.path.join(new_dir, filename + '.html'))
             move(name_dir_files, os.path.join(new_dir, name_dir_files))
             os.chdir('..' )
