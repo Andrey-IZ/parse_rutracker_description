@@ -23,13 +23,12 @@ class ParseFilmRutracker(object):
                                     r'(?:\s*Год.*?))</span>', re.DOTALL | re.I)
         self.__p_title_div = re.compile(r'([А-Яа-яёЁ 0-9]+)\s+[/\\]\s+([a-zA-Z 0-9]+)', re.MULTILINE)
         self.__p_screen_ref = re.compile(
-            r'\s*<a .*?href="(http://.*?\.((?:(?:png)|(?:jpe?g)|(?:gif)))[.\w]*)".*?>', re.S)
+            r'\s*<a .*?href="(http://.*?\.((?:(?:png)|(?:jpe?g)|(?:gif)))[.\w]*)".*?>', re.M)
         self.__p_screen_ref_image = re.compile(r"<script>\s+loading_img\s+=\s+'(.*?)';", re.S)
         self.__p_screen_ref_radikal_image = re.compile(
             r'<div itemscope itemtype="http://schema.org/ImageObject">\s+'
             r'<img\s+src="(.*?)".*? itemprop="contentUrl".*?/>', re.S)
-        self.__p_div_screen = re.compile(
-            r'<div class="sp-head folded">.*?(Скриншот\w*)', re.S)
+        ''''''
         self.__p_rating_img = re.compile(r'<var class="postImg" title="(http://[^\s>]+[.](gif)\s*)"\s*>', re.S)
         self.__p_poster = re.compile(r'(?<=>)\s*<var\s+class="postImg[" ].*?title="'
                                      r'(http://.*?\.((?:(?:png)|(?:jpe?g)|(?:gif))))".*?>', re.DOTALL)
@@ -76,8 +75,7 @@ class ParseFilmRutracker(object):
             print(film_descr.title + ': save to file: {0} ...'.format(filename))
             os.chdir(path_to_save)
             print(film_descr.title + ': get curcwd = ' + os.getcwd())
-            dir_path = path_to_save + os.path.sep + name_dir_files
-            # try:
+            dir_path = filename
             if os.path.exists(dir_path):
                 # os.chmod(dir_path + '/..', 0x0777)
                 rmtree(dir_path, False)
@@ -88,29 +86,33 @@ class ParseFilmRutracker(object):
             #     print("Error: Denied access to dir:" + dir_path)
             #     return False
             os.chdir(name_dir_files)
-            print(film_descr.title + ': get curcwd = ' + os.getcwd())
+            # print(film_descr.title + ': get curcwd = ' + os.getcwd())
             html_text = self._load_css(film_descr.title, html_text, name_dir_files)
             html_text = self._load_js(film_descr.title, html_text, name_dir_files)
             print(film_descr.title + ': saving screenshots ...')
             html_text = self._create_image(html_text, film_descr.screenshots, name_dir_files, 'screen')
             print(film_descr.title + ': saving poster ...')
             html_text = self._create_image(html_text, [film_descr.poster], name_dir_files, 'poster')
-            os.chdir(os.path.abspath(dir_path + os.path.sep + '..'))
+            print(os.path.abspath(dir_path + os.path.sep + '..'))
+            os.chdir('..')
             print(film_descr.title + ': get curcwd = ' + os.getcwd())
             print(film_descr.title + ': saving web page: "{0}/{1}" ...'.format(os.getcwd(), filename))
             with open(filename + '.html', 'wt') as f:
                 f.writelines(html_text)
             new_dir = filename
+            s = re.search(r'([\s])',filename)
+            if s:
+                new_dir = filename[:s.start()]
+
             try:
                 os.makedirs(new_dir)
             except FileExistsError as err:
                 print(err)
                 rmtree(new_dir, False)
                 os.makedirs(new_dir)
-            move(filename + '.html', new_dir)
-            move(name_dir_files, new_dir)
-            os.chdir(os.path.abspath(dir_path + os.path.sep + '..' + os.path.sep + '..'))
-            print(film_descr.title + ': get curcwd = ' + os.getcwd())
+            move(filename + '.html', os.path.join(new_dir, filename + '.html'))
+            move(name_dir_files, os.path.join(new_dir, name_dir_files))
+            os.chdir('..' )
             return True
         return False
 
@@ -121,7 +123,7 @@ class ParseFilmRutracker(object):
         return html_text
 
     def _load_js(self, title, html_text: str, dir_files):
-        print('load js ...')
+        print('{}:load js ...'.format(title))
         pattern = r'(<script\s+src=")(.*?)([^/]+[.]\w+)\s*("\s*>.*?</script>)'
         html_text = self._move_web_to_local_file(title, dir_files, html_text, pattern)
         return html_text
@@ -133,7 +135,7 @@ class ParseFilmRutracker(object):
                 web_file_name = item_re[2]
                 file_web_path = item_re[1]
                 file_web_path = file_web_path if file_web_path[:5] == 'http:' else 'http:' + file_web_path
-                print('{} - {}) name= {} --: get curcwd = {}'.format(title, i, web_file_name, os.getcwd()))
+                print('\t{} - {}) name= {}'.format(title, i, web_file_name))
                 self.__download_file_on_disk(file_web_path + web_file_name, web_file_name)
 
                 file_path = './' + dir_files + '/'
@@ -148,7 +150,7 @@ class ParseFilmRutracker(object):
             sym = '&#10;'
             for i, (ref, image, ext) in enumerate(list_images):
                 filename = '{}_{}.{}'.format(prefix, i, ext)
-                print('filename={}'.format(filename))
+                print('\t{}'.format(filename))
                 with open(filename, 'wb') as f:
                     f.write(image)
                     # scr = '<var class="postImg" title="http://i69.fastpic.ru/thumb/2016/0622/bc/8c3a6dfb955623db9d9aa38fdc9489bc.jpeg">&#10;</var>'
@@ -188,48 +190,50 @@ class ParseFilmRutracker(object):
         return images
 
     def __get_screenshots(self, title, html_text: str) -> list:
-        div_screens = self.__p_div_screen.search(html_text)
-        if div_screens and len(div_screens.groups()) == 1:
-            print('{}: get screenshots ...'.format(title))
-            start = div_screens.end(1)
-            refs = self.__p_screen_ref.findall(html_text[start:])
-            images = []
-            for ref, ext in refs:
-                try:
-                    text_ref = self.__html_loader(ref)
-                    if re.search(r'http://radikal.ru', ref):
-                        ref_image = self.__p_screen_ref_radikal_image.search(text_ref)
-                    else:
-                        ref_image = self.__p_screen_ref_image.search(text_ref)
-                    if ref_image and len(ref_image.groups()) == 1:
-                        link = ref_image.group(1)
-                        image = self.__web_file_loader(link)
-                        if image:
-                            images.append((ref, image, ext))
-                except request.URLError as err:
-                    print('ERROR (screenshots): {}'.format(err))
-            return images
-        return None
+        print('{}: get screenshots ...'.format(title), end=' ')
+        refs = self.__p_screen_ref.findall(html_text)
+        print('({})'.format(len(refs)))
+        images = []
+        for i, (ref, ext) in enumerate(refs):
+            try:
+                text_ref = self.__html_loader(ref)
+                if re.search(r'http://radikal.ru', ref):
+                    ref_image = self.__p_screen_ref_radikal_image.search(text_ref)
+                else:
+                    ref_image = self.__p_screen_ref_image.search(text_ref)
+                if ref_image and len(ref_image.groups()) == 1:
+                    link = ref_image.group(1)
+                    image = self.__web_file_loader(link)
+                    if image:
+                        images.append((ref, image, ext))
+                        print('{0}:\t{1}'.format(i,ref))
+            except request.URLError as err:
+                print('ERROR (screenshots): {}'.format(err))
+        return images
 
     def __get_quality(self, html_text):
-        tag = r'(?:Качество\s+)?видео'
-        m_quality = re.search(r'(?<=>)\s*' + tag + r'.*?:\s*(.*?)\s*[(].*?[)](?=<br\s*?/>)', html_text, re.I)
+        tag = r'Качество(?:\\s+видео)?'
+        m_quality = re.search(r'(?<=>)\s*' + tag + r'.*?:(?:\s+)?(.*?)(?=<br\s*?/>)', html_text, re.I)
         if m_quality and m_quality.group(1):
-            return m_quality.group(1)
+            res_str = re.sub(r'<.*?>', '', m_quality.group(1))
+            print('\tКачество: {}'.format(res_str.strip()))
+            return res_str.strip()
         return ''
 
     def __get_mini_descr(self, html_text, tag) -> str:
-        m_tag = re.search(r'(?<=>)(?:\s+)?' + tag + r'(?:\s+)?.*?:(?:\s+)?(.*?)<.*?(?=<br\s?/>)', html_text,
-                          re.S | re.I)
+        m_tag = re.search(r'' + tag + r'.*?:\s*(.*?)(?=<br\s?/>)', html_text,  re.S | re.I)
         if m_tag and m_tag.group(1):
-            return m_tag.group(1)
+            res_str = re.sub(r'<.*?>', '', m_tag.group(1)).strip()
+            print('\t{0}: {1}'.format(tag, res_str))
+            return res_str
         return ''
 
     def __get_poster(self, title, html_text) -> tuple:
         poster = self.__p_poster.search(html_text)
         if poster and len(poster.groups()) == 2:
-            print('{}: get poster ...'.format(title))
+            print('{}: get poster ...'.format(title), end=': ')
             ref = poster.group(1)
+            print(ref)
             ext = poster.group(2)
             try:
                 image = self.__web_file_loader(ref)

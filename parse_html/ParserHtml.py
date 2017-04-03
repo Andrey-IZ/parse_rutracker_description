@@ -46,7 +46,7 @@ class HtmlParser(object):
                                                  re.sub(r'[;:\\/\s,\]\[.]', '_', fd.genre),
                                                  re.sub(r'[\[\]\\/]', '_', fd.video),
                                                  fd.year)
-            print('==== SAVE ==== title: {0}; curdir = {1}'.format(title, os.getcwd()))
+            print('==== SAVE ==== '.format(title, os.getcwd()))
             if parser.save_to_file(fd, path_to_save, title):
                 print('========= web page is saved =================')
                 return True
